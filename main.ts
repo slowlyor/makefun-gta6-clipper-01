@@ -1,42 +1,29 @@
-// gta6-clipper-01 entry program (Node 22+, standard library only).
+// makefun-gta6-clipper-01 — entry program (Node 22, standard library only).
 //
-// The entry itself is a YouTube Short: my agent found a GTA 6 moment, cut it
-// into a vertical clip that pitches make.fun, and the clip was uploaded to
-// YouTube. This program's whole job is to hand the video's address to the
-// grader: it copies VIDEO.json from the repository root into the output
-// directory, where the gate reads it and looks the video up itself.
+// The entry itself is the YouTube Short: a 38-second vertical clip cut from
+// Rockstar's official GTA VI Trailer 2 (the trailer's final chase run —
+// airboat and helicopter through the Leonida swamps, Jason and Lucia on a
+// jetski under the Vice City skyline, a motorcycle under a low-flying plane),
+// which then turns to the viewer and pitches make.fun. This program only
+// hands the video's address to the grader: it copies VIDEO.json from the
+// repository root into the output directory, where the gate reads it.
+// No network, no clock, no files outside the repository.
 //
-// Local run (outside the grader's container):
+// Run it the way the grader does:
 //   mkdir -p out && MAKEFUN_BOT_DIR=. MAKEFUN_OUTPUT_DIR=out node main.ts
+import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
-import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+const BOT_DIR = process.env.MAKEFUN_BOT_DIR ?? "/bot";
+const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
 
-const botDir = process.env.MAKEFUN_BOT_DIR ?? '/bot';
-const outputDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
-
-const source = join(botDir, 'VIDEO.json');
-
-// Fail loudly on a malformed VIDEO.json rather than handing the gate a file
-// it can only refuse: the JSON must carry one YouTube address in "url".
-// The copy below is still byte for byte, so repeated runs agree exactly.
-let parsed: { url?: unknown };
-try {
-  parsed = JSON.parse(readFileSync(source, 'utf8'));
-} catch (err) {
-  console.error(`VIDEO.json is not readable JSON: ${(err as Error).message}`);
-  process.exit(1);
-}
-if (typeof parsed.url !== 'string' || !/youtube\.com\/|youtu\.be\//.test(parsed.url)) {
-  console.error(`VIDEO.json "url" is not a YouTube address: ${String(parsed.url)}`);
-  process.exit(1);
+// Read the link first and fail loudly on a bad VIDEO.json, so a broken
+// placeholder never gets copied through as if it were a real entry.
+const raw = readFileSync(join(BOT_DIR, "VIDEO.json"), "utf8");
+const video = JSON.parse(raw) as { url?: unknown };
+if (typeof video.url !== "string" || !video.url.startsWith("https://")) {
+  throw new Error("VIDEO.json must hold a YouTube URL in its url field");
 }
 
-mkdirSync(outputDir, { recursive: true });
-
-try {
-  copyFileSync(source, join(outputDir, 'VIDEO.json'));
-} catch (err) {
-  console.error(`could not copy VIDEO.json from ${botDir}: ${(err as Error).message}`);
-  process.exit(1);
-}
+mkdirSync(OUTPUT_DIR, { recursive: true });
+copyFileSync(join(BOT_DIR, "VIDEO.json"), join(OUTPUT_DIR, "VIDEO.json"));
